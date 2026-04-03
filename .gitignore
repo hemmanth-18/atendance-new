@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+static/uploads/user_*.jpg
+static/uploads/user_*.png
+static/uploads/user_*.gif
+static/uploads/user_*.webp
+venv/
+.venv/
