@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% block title %}Mark Attendance - AttendSmart{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <h2>✅ Mark Attendance</h2>
+    <p>{{ mark_date.strftime('%A, %d %B %Y') }}</p>
+</div>
+
+{% if already_submitted %}
+<div class="already-done-card">
+    <div class="already-done-icon">✅</div>
+    <h3>Attendance already submitted for this day!</h3>
+    <p>You marked attendance for {{ mark_date.strftime('%A, %d %B %Y') }} already.</p>
+    <div class="already-done-summary">
+        {% for cls in classes %}
+        {% set key = cls[1]|string + '_' + cls[0]|string %}
+        <div class="done-row">
+            <span>{{ cls[3] }} — <strong>{{ cls[2] }}</strong></span>
+            <span class="status-badge status-{{ existing.get(key, 'absent') }}">
+                {{ '✅ Present' if existing.get(key) == 'present' else '❌ Absent' }}
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    <a href="{{ url_for('mark_today', date=mark_date.isoformat()) }}" class="btn-secondary">Edit Attendance</a>
+    <a href="{{ url_for('dashboard') }}" class="btn-primary">Back to Dashboard</a>
+</div>
+{% else %}
+
+<div class="mark-card">
+    <div class="mark-header">
+        <div class="mark-header-info">
+            <span>📚 {{ classes|length }} class(es) scheduled today</span>
+            <span>Mark each class as Present or Absent</span>
+        </div>
+    </div>
+
+    <form method="POST">
+        <div class="classes-list">
+            {% for cls in classes %}
+            {% set key = cls[1]|string + '_' + cls[0]|string %}
+            <div class="class-row">
+                <div class="class-info">
+                    <span class="class-time">🕐 {{ cls[3] }}</span>
+                    <span class="class-name">{{ cls[2] }}</span>
+                </div>
+                <div class="class-status-toggle">
+                    <label class="toggle-label">
+                        <input type="radio"
+                               name="status_{{ cls[1] }}_{{ cls[0] }}"
+                               value="present"
+                               {% if existing.get(key) == 'present' %}checked{% endif %}
+                               class="radio-present">
+                        <span class="toggle-btn toggle-present">✅ Present</span>
+                    </label>
+                    <label class="toggle-label">
+                        <input type="radio"
+                               name="status_{{ cls[1] }}_{{ cls[0] }}"
+                               value="absent"
+                               {% if existing.get(key) != 'present' %}checked{% endif %}
+                               class="radio-absent">
+                        <span class="toggle-btn toggle-absent">❌ Absent</span>
+                    </label>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+            <button type="button" onclick="markAll('present')" class="btn-all-present">✅ Mark All Present</button>
+            <button type="button" onclick="markAll('absent')" class="btn-all-absent">❌ Mark All Absent</button>
+        </div>
+
+        <button type="submit" class="btn-primary btn-full btn-large">💾 Submit Attendance</button>
+    </form>
+</div>
+
+<script>
+function markAll(status) {
+    const radios = document.querySelectorAll(`input[value="${status}"]`);
+    radios.forEach(r => r.checked = true);
+    // Update visual
+    updateToggleVisuals();
+}
+
+function updateToggleVisuals() {
+    document.querySelectorAll('.class-row').forEach(row => {
+        const presentRadio = row.querySelector('input[value="present"]');
+        const absentRadio = row.querySelector('input[value="absent"]');
+        const presentBtn = row.querySelector('.toggle-present');
+        const absentBtn = row.querySelector('.toggle-absent');
+        if (presentRadio.checked) {
+            presentBtn.classList.add('selected-present');
+            absentBtn.classList.remove('selected-absent');
+        } else {
+            absentBtn.classList.add('selected-absent');
+            presentBtn.classList.remove('selected-present');
+        }
+    });
+}
+
+// Listen for radio changes
+document.querySelectorAll('input[type="radio"]').forEach(r => {
+    r.addEventListener('change', updateToggleVisuals);
+});
+
+// Init visuals
+updateToggleVisuals();
+</script>
+{% endif %}
+
+<!-- Past date selector -->
+<div class="card mt-20">
+    <h4>📅 Mark for a Different Date</h4>
+    <div class="date-selector">
+        <input type="date" id="date-picker"
+               value="{{ mark_date.isoformat() }}"
+               max="{{ today.isoformat() if today is defined else '' }}">
+        <button onclick="goToDate()" class="btn-secondary">Go</button>
+    </div>
+</div>
+
+<script>
+function goToDate() {
+    const d = document.getElementById('date-picker').value;
+    if (d) window.location.href = '/mark_today?date=' + d;
+}
+</script>
+
+{% endblock %}

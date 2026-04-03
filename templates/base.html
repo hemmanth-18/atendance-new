@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AttendSmart{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+{% if session.user_id %}
+<nav class="navbar">
+    <div class="nav-brand">📊 AttendSmart</div>
+    <div class="nav-links">
+        <a href="{{ url_for('dashboard') }}" {% if request.endpoint=='dashboard' %}class="active"{% endif %}>🏠 Home</a>
+        <a href="{{ url_for('view_timetable') }}" {% if request.endpoint=='view_timetable' %}class="active"{% endif %}>📅 Timetable</a>
+        <a href="javascript:void(0)" onclick="goMark()"
+           {% if request.endpoint in ['mark_attendance','saturday_check','mark_saturday'] %}class="active"{% endif %}>✅ Mark</a>
+        <a href="{{ url_for('past_dates') }}" {% if request.endpoint=='past_dates' %}class="active"{% endif %}>📋 Past</a>
+        <a href="{{ url_for('attendance_history') }}" {% if request.endpoint=='attendance_history' %}class="active"{% endif %}>📖 History</a>
+        <a href="{{ url_for('setup_step1') }}" {% if 'setup' in request.endpoint %}class="active"{% endif %}>⚙️ Setup</a>
+        <a href="{{ url_for('profile') }}" class="nav-avatar-link {% if request.endpoint=='profile' %}active{% endif %}" title="{{ session.user_name }}">
+            {% if session.user_photo %}
+                <img src="{{ url_for('static', filename='uploads/' + session.user_photo) }}"
+                     class="nav-avatar-img" alt="{{ session.user_name }}">
+            {% else %}
+                <div class="nav-avatar-initials">{{ session.user_name[0]|upper if session.user_name else '?' }}</div>
+            {% endif %}
+        </a>
+        <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+</nav>
+{% endif %}
+
+<div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+</div>
+
+<!-- 9 PM Reminder Popup -->
+{% if session.user_id %}
+<div id="reminder-popup" class="reminder-popup" style="display:none;">
+    <div class="reminder-box">
+        <div class="reminder-icon">🔔</div>
+        <h3 id="reminder-title">Time to Mark Attendance!</h3>
+        <p id="reminder-msg">It's 9:00 PM — mark today's attendance before you sleep.</p>
+        <div class="reminder-actions">
+            <a href="javascript:void(0)" onclick="goMark()" class="btn-primary" id="reminder-link">Mark Now →</a>
+            <button onclick="dismissReminder()" class="btn-dismiss">Remind Later</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function checkReminder() {
+    const now = new Date();
+    const hour = now.getHours();
+    const day = now.getDay();
+    const isSaturday = (day === 6);
+    const isWeekday = (day >= 1 && day <= 5);
+    const todayStr = now.toDateString();
+    const dismissed = sessionStorage.getItem('dismissed_' + todayStr);
+    if (dismissed) return;
+    if (hour < 21) return;
+    if (!isSaturday && !isWeekday) return;
+    fetch('/api/today_status')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.has_classes || data.submitted) return;
+            if (isSaturday) {
+                document.getElementById('reminder-title').textContent = '📅 Saturday Attendance!';
+                document.getElementById('reminder-msg').textContent = "It's 9 PM Saturday — mark your Saturday classes before midnight.";
+            } else {
+                document.getElementById('reminder-title').textContent = "🔔 Mark Today's Attendance!";
+                document.getElementById('reminder-msg').textContent = "It's 9 PM — mark attendance for today's classes before you sleep.";
+            }
+            document.getElementById('reminder-popup').style.display = 'flex';
+        });
+}
+function dismissReminder() {
+    sessionStorage.setItem('dismissed_' + new Date().toDateString(), '1');
+    document.getElementById('reminder-popup').style.display = 'none';
+}
+checkReminder();
+setInterval(checkReminder, 10 * 60 * 1000);
+
+function goMark() {
+    const day = new Date().getDay();
+    window.location.href = (day === 6) ? '/saturday' : '/mark';
+}
+</script>
+{% endif %}
+
+</body>
+</html>

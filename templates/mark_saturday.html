@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+{% block title %}Saturday Attendance - {{ mark_date.strftime('%d %b') }}{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h2>📅 Saturday Attendance</h2>
+        <p>{{ mark_date.strftime('%d %B %Y') }} <span class="saturday-badge">Saturday</span></p>
+    </div>
+    <a href="{{ url_for('saturday_check', date=mark_date.isoformat()) }}" class="btn-secondary">⚙️ Change Schedule</a>
+</div>
+
+{% if already_submitted %}
+{# ═══ SUBMITTED VIEW ═══ #}
+<div class="submitted-card">
+    <div class="submitted-icon">✅</div>
+    <h3>Saturday attendance submitted!</h3>
+    <p>{{ mark_date.strftime('%d %B %Y') }}</p>
+    <div class="submitted-summary">
+    {% for slot in sat_slots %}
+        {% set slot_id = slot[0] %}
+        {% set is_free = slot[5] %}
+        {% set rec_status = existing.get(slot_id) %}
+        {% if is_free and not free_chosen.get(slot_id) %}
+        <div class="submitted-row">
+            <div class="submitted-left">
+                <span class="period-badge">P{{ slot[1] }}</span>
+                <span class="period-subject">🔓 Free Hour <span style="color:#aaa;font-size:0.82em;">(Skipped)</span></span>
+            </div>
+            <span class="status-badge" style="background:#f5f5f5;color:#aaa;">— Skipped</span>
+        </div>
+        {% else %}
+        <div class="submitted-row">
+            <div class="submitted-left">
+                <span class="period-badge">P{{ slot[1] }}</span>
+                <span class="period-subject">
+                    {% if is_free %}
+                        🔓 Free Hour → {{ subjects_dict.get(free_chosen.get(slot_id), '?') }}
+                    {% else %}
+                        {% set aid = sub_chosen.get(slot_id, slot[3]) %}
+                        {{ subjects_dict.get(aid, slot[4]) }}
+                        {% if aid and slot[3] and aid != slot[3] %}<span class="sub-pill">↔ sub</span>{% endif %}
+                    {% endif %}
+                </span>
+            </div>
+            <span class="status-badge status-{{ rec_status or 'absent' }}">
+                {{ '✅ Present' if rec_status == 'present' else '❌ Absent' }}
+            </span>
+        </div>
+        {% endif %}
+    {% endfor %}
+    </div>
+    <a href="{{ url_for('mark_saturday', date=mark_date.isoformat()) }}?edit=1" class="btn-secondary">✏️ Edit</a>
+    <a href="{{ url_for('dashboard') }}" class="btn-primary">Dashboard</a>
+</div>
+
+{% else %}
+{# ═══ MARK FORM — all periods visible at once ═══ #}
+<form method="POST" id="sat-form">
+<div class="mark-card">
+    <div class="mark-card-header">{{ sat_slots|length }} period(s) — Saturday</div>
+    <div class="periods-list">
+
+    {% for slot in sat_slots %}
+    {% set slot_id   = slot[0] %}
+    {% set period    = slot[1] %}
+    {% set orig_id   = slot[3] %}
+    {% set orig_name = slot[4] %}
+    {% set is_free   = slot[5] %}
+
+    <div class="period-row {{ 'free-row' if is_free else '' }}" id="prow_{{ slot_id }}">
+        <div class="period-left">
+            <span class="period-badge">P{{ period }}</span>
+            <div class="period-details">
+                <span class="period-name">
+                    {% if is_free %}🔓 Free Hour{% else %}{{ orig_name }}{% endif %}
+                </span>
+            </div>
+        </div>
+
+        <div class="period-right-area">
+        {% if is_free %}
+            <select name="free_subject_{{ slot_id }}" class="free-subject-select-inline"
+                    id="wfsel_{{ slot_id }}" onchange="syncFreeSkip('{{ slot_id }}')">
+                <option value="">No class (skip)</option>
+                {% for sid, sname in subjects_dict.items() %}
+                <option value="{{ sid }}" {{ 'selected' if free_chosen.get(slot_id)==sid }}>{{ sname }}</option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="skip_free_{{ slot_id }}" id="wskip_{{ slot_id }}"
+                   value="{{ '0' if free_chosen.get(slot_id) else '1' }}">
+            <div class="mini-toggle" id="ftoggle_{{ slot_id }}"
+                 style="{{ '' if free_chosen.get(slot_id) else 'opacity:0.4;pointer-events:none;' }}">
+                <label class="toggle-label">
+                    <input type="radio" name="status_{{ slot_id }}" value="present"
+                           {{ 'checked' if existing.get(slot_id)=='present' }} onchange="updToggle(this)">
+                    <span class="toggle-btn toggle-present {{ 'selected-present' if existing.get(slot_id)=='present' }}">✅</span>
+                </label>
+                <label class="toggle-label">
+                    <input type="radio" name="status_{{ slot_id }}" value="absent"
+                           {{ 'checked' if existing.get(slot_id)=='absent' }} onchange="updToggle(this)">
+                    <span class="toggle-btn toggle-absent {{ 'selected-absent' if existing.get(slot_id)=='absent' }}">❌</span>
+                </label>
+            </div>
+
+        {% else %}
+            <div class="wd-subst-wrap">
+                <select name="sub_subject_{{ slot_id }}" class="wd-subst-select"
+                        onchange="wdSubstTag(this,'{{ orig_id }}','wtag_{{ slot_id }}')">
+                    {% for sid, sname in subjects_dict.items() %}
+                    <option value="{{ sid }}" {{ 'selected' if sid == sub_chosen.get(slot_id, orig_id) }}>
+                        {{ sname }}{% if sid == orig_id %} ★{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <span class="sub-pill" id="wtag_{{ slot_id }}"
+                      style="{{ '' if (sub_chosen.get(slot_id) and sub_chosen.get(slot_id) != orig_id) else 'display:none' }}">
+                    ↔ sub
+                </span>
+            </div>
+            <div class="status-toggle">
+                <label class="toggle-label">
+                    <input type="radio" name="status_{{ slot_id }}" value="present"
+                           {{ 'checked' if existing.get(slot_id)=='present' }} onchange="updToggle(this)">
+                    <span class="toggle-btn toggle-present {{ 'selected-present' if existing.get(slot_id)=='present' }}">✅ Present</span>
+                </label>
+                <label class="toggle-label">
+                    <input type="radio" name="status_{{ slot_id }}" value="absent"
+                           {{ 'checked' if existing.get(slot_id)!='present' }} onchange="updToggle(this)">
+                    <span class="toggle-btn toggle-absent {{ 'selected-absent' if existing.get(slot_id)!='present' }}">❌ Absent</span>
+                </label>
+            </div>
+        {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    </div>
+
+    <div class="quick-actions">
+        <button type="button" onclick="markAllPresent()" class="btn-all-present">✅ All Present</button>
+        <button type="button" onclick="markAllAbsent()"  class="btn-all-absent">❌ All Absent</button>
+    </div>
+    <div style="padding:12px 16px 20px;">
+        <button type="submit" class="btn-primary btn-full btn-large">💾 Submit Saturday Attendance</button>
+    </div>
+</div>
+</form>
+
+<script>
+function updToggle(radio) {
+    const row = radio.closest('.period-row,.status-toggle,.mini-toggle');
+    if (!row) return;
+    row.querySelectorAll('.toggle-present').forEach(b => b.classList.remove('selected-present'));
+    row.querySelectorAll('.toggle-absent').forEach(b => b.classList.remove('selected-absent'));
+    radio.nextElementSibling.classList.add(radio.value === 'present' ? 'selected-present' : 'selected-absent');
+}
+document.querySelectorAll('input[type="radio"]').forEach(r => r.addEventListener('change', () => updToggle(r)));
+
+function syncFreeSkip(slotId) {
+    const sel  = document.getElementById('wfsel_' + slotId);
+    const skip = document.getElementById('wskip_' + slotId);
+    const tog  = document.getElementById('ftoggle_' + slotId);
+    const has  = !!sel.value;
+    skip.value = has ? '0' : '1';
+    if (tog) { tog.style.opacity = has ? '1' : '0.4'; tog.style.pointerEvents = has ? '' : 'none'; }
+}
+
+function wdSubstTag(sel, origId, tagId) {
+    const t = document.getElementById(tagId);
+    if (t) t.style.display = (sel.value && sel.value != origId) ? 'inline-block' : 'none';
+}
+
+function markAllPresent() {
+    document.querySelectorAll('input[value="present"]').forEach(r => { r.checked = true; updToggle(r); });
+    document.querySelectorAll('.free-subject-select-inline').forEach(sel => {
+        if (sel.value) syncFreeSkip(sel.id.replace('wfsel_',''));
+    });
+}
+function markAllAbsent() {
+    document.querySelectorAll('input[value="absent"]').forEach(r => { r.checked = true; updToggle(r); });
+}
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}Register - AttendSmart{% endblock %}
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card wide-card">
+        <div class="auth-header">
+            <div class="auth-logo">📊</div>
+            <h1>Create Account</h1>
+            <p>Step 1 of 4 — Basic Info &amp; Semester</p>
+        </div>
+        <form method="POST" class="auth-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" name="name" placeholder="Your name" required>
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" placeholder="your@email.com" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" placeholder="Min 6 characters" required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Branch / Department</label>
+                    <input type="text" name="branch" placeholder="CSE, ECE, MECH..." required>
+                </div>
+                <div class="form-group">
+                    <label>Total Semesters in your course</label>
+                    <select name="total_semesters" id="total-sems-select" onchange="buildSemDropdown(this.value)">
+                        {% for i in [4,6,8,10] %}
+                        <option value="{{ i }}" {{ 'selected' if i==8 }}>{{ i }} Semesters</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Current Semester</label>
+                <select name="semester" id="current-sem-select">
+                    {% for i in range(1,9) %}
+                    <option value="{{ i }}">Semester {{ i }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Semester Start Date</label>
+                    <input type="date" name="semester_start" required>
+                </div>
+                <div class="form-group">
+                    <label>Semester End Date</label>
+                    <input type="date" name="semester_end" required>
+                </div>
+            </div>
+            <button type="submit" class="btn-primary btn-full">Next: Setup Timetable →</button>
+        </form>
+        <p class="auth-switch">Already registered? <a href="{{ url_for('login') }}">Login</a></p>
+    </div>
+</div>
+
+<script>
+function buildSemDropdown(total) {
+    const sel = document.getElementById('current-sem-select');
+    const prev = parseInt(sel.value) || 1;
+    sel.innerHTML = '';
+    for (let i = 1; i <= parseInt(total); i++) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = 'Semester ' + i;
+        if (i === prev) opt.selected = true;
+        sel.appendChild(opt);
+    }
+}
+// Init on page load
+buildSemDropdown(document.getElementById('total-sems-select').value);
+</script>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Mark Attendance - AttendSmart{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>✅ Mark Attendance</h2>
+    <p>Record your attendance for today or any past date</p>
+</div>
+
+<div class="two-col">
+    <!-- Mark Attendance Form -->
+    <div class="card">
+        <h3>Mark Attendance</h3>
+        {% if subjects %}
+        <form method="POST" class="auth-form">
+            <div class="form-group">
+                <label>Subject</label>
+                <select name="subject_id" required>
+                    <option value="">Select Subject</option>
+                    {% for s in subjects %}
+                    <option value="{{ s[0] }}">{{ s[2] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" name="date" value="{{ today }}" max="{{ today }}" required>
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <div class="radio-group">
+                    <label class="radio-label radio-present">
+                        <input type="radio" name="status" value="present" checked>
+                        ✅ Present
+                    </label>
+                    <label class="radio-label radio-absent">
+                        <input type="radio" name="status" value="absent">
+                        ❌ Absent
+                    </label>
+                </div>
+            </div>
+            <button type="submit" class="btn-primary btn-full">Mark Attendance</button>
+        </form>
+        {% else %}
+        <p>No subjects found. <a href="{{ url_for('subjects') }}">Add subjects first.</a></p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Records -->
+    <div class="card">
+        <h3>Recent Records</h3>
+        {% if records %}
+        <div class="records-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Subject</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in records %}
+                    <tr>
+                        <td>{{ r[0] }}</td>
+                        <td>{{ r[1] }}</td>
+                        <td>
+                            <span class="status-badge status-{{ r[2] }}">
+                                {{ '✅ Present' if r[2] == 'present' else '❌ Absent' }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="empty-text">No attendance records yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

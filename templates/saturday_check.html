@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% block title %}Saturday Check - {{ mark_date.strftime('%d %b') }}{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h2>📅 Saturday — {{ mark_date.strftime('%d %B %Y') }}</h2>
+        <p>{% if is_edit_mode %}Editing past Saturday attendance{% else %}Tell us whether this Saturday has classes before marking attendance{% endif %}</p>
+    </div>
+    <a href="{{ url_for('dashboard') }}" class="btn-secondary">← Dashboard</a>
+</div>
+
+{% if is_edit_mode %}
+<div class="edit-mode-banner">
+    ✏️ <strong>Edit Mode</strong> — You're editing a past Saturday. Change the schedule below or update attendance directly.
+</div>
+{% endif %}
+
+{% if existing_config %}
+{# Already configured — show summary + option to change #}
+<div class="sat-existing-card">
+    {% if existing_config[0] == 0 %}
+    <div class="sat-holiday-summary">
+        <span>🏖️</span>
+        <div>
+            <strong>Marked as Holiday</strong>
+            <p>{{ mark_date.strftime('%d %B %Y') }} has no classes. No attendance needed.</p>
+        </div>
+    </div>
+    {% else %}
+    <div class="sat-working-summary">
+        <span>📚</span>
+        <div>
+            <strong>Working Saturday — {{ existing_config[1] }} period(s)</strong>
+            <p>Subjects scheduled:</p>
+            <div class="sat-slots-list">
+                {% for sl in existing_slots %}
+                <div class="sat-slot-row">
+                    <span class="period-badge">P{{ sl[1] }}</span>
+                    <span class="sat-slot-name">
+                        {% if sl[5] %}🔓 Free Hour{% else %}{{ sl[4] }}{% endif %}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;">
+        <a href="{{ url_for('mark_saturday', date=mark_date.isoformat()) }}{% if is_edit_mode %}&edit=1{% endif %}" class="btn-primary">✅ {% if is_edit_mode %}Edit Attendance →{% else %}Mark Attendance →{% endif %}</a>
+        <button type="button" class="btn-secondary" onclick="showChangeForm()">✏️ Change Schedule</button>
+    </div>
+    {% endif %}
+</div>
+<div id="change-form-area" style="display:none;margin-top:16px;">
+{% else %}
+<div id="change-form-area">
+{% endif %}
+
+<div class="sat-check-card">
+    <div class="sat-question">
+        <div class="sat-q-icon">📅</div>
+        <h3>Is {{ mark_date.strftime('%d %B %Y') }} a working Saturday?</h3>
+        <p>Choose whether classes are happening today</p>
+    </div>
+
+    <div class="sat-choice-row" id="sat-choices">
+        <button type="button" class="sat-btn-yes" onclick="showWorking()">✅ Yes — Classes today</button>
+        <button type="button" class="sat-btn-no"  onclick="showHoliday()">🏖️ No — Holiday</button>
+    </div>
+
+    {# Holiday form #}
+    <form method="POST" id="holiday-form" style="display:none;">
+        <input type="hidden" name="action" value="holiday">
+        <div class="sat-confirm-box holiday-box">
+            🏖️ <strong>Marking {{ mark_date.strftime('%d %B') }} as a holiday</strong>
+            <p>This day won't be counted in attendance calculations.</p>
+        </div>
+        <div class="sat-form-btns">
+            <button type="button" class="btn-secondary" onclick="resetChoices()">← Back</button>
+            <button type="submit" class="btn-primary">Confirm Holiday</button>
+        </div>
+    </form>
+
+    {# Working day form #}
+    <form method="POST" id="working-form" style="display:none;">
+        <input type="hidden" name="action" value="working">
+
+        <div class="sat-working-section">
+            <div class="sat-section-heading">How many periods today?</div>
+            <div class="period-selector">
+                {% for p in range(1, 9) %}
+                <label class="period-pill">
+                    <input type="radio" name="total_periods" value="{{ p }}"
+                           {{ 'checked' if p == 6 }}
+                           onchange="buildPeriodForm({{ p }})">
+                    <span>{{ p }}</span>
+                </label>
+                {% endfor %}
+            </div>
+
+            <div class="sat-section-heading" style="margin-top:16px;">Which subject for each period?</div>
+            <div id="period-subject-rows"></div>
+        </div>
+
+        <div class="sat-form-btns">
+            <button type="button" class="btn-secondary" onclick="resetChoices()">← Back</button>
+            <button type="submit" class="btn-primary btn-large">Next: Mark Attendance →</button>
+        </div>
+    </form>
+</div>
+
+</div>{# end change-form-area #}
+
+<script>
+const SUBJECTS = [{% for sid, sname in subjects_dict.items() %}{ id: {{ sid }}, name: {{ sname|tojson }} },{% endfor %}];
+
+function showWorking() {
+    document.getElementById('sat-choices').style.display  = 'none';
+    document.getElementById('holiday-form').style.display = 'none';
+    document.getElementById('working-form').style.display = 'block';
+    buildPeriodForm(6); // default 6 periods
+}
+function showHoliday() {
+    document.getElementById('sat-choices').style.display  = 'none';
+    document.getElementById('working-form').style.display = 'none';
+    document.getElementById('holiday-form').style.display = 'block';
+}
+function resetChoices() {
+    document.getElementById('sat-choices').style.display  = 'flex';
+    document.getElementById('working-form').style.display = 'none';
+    document.getElementById('holiday-form').style.display = 'none';
+}
+function showChangeForm() {
+    document.getElementById('change-form-area').style.display = 'block';
+}
+
+function buildPeriodForm(n) {
+    // Sync radio buttons
+    document.querySelectorAll('input[name="total_periods"]').forEach(r => {
+        r.checked = (parseInt(r.value) === n);
+    });
+    let html = '';
+    for (let i = 1; i <= n; i++) {
+        const opts = `<option value="FREE">🔓 Free Hour</option>` + SUBJECTS.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        html += `
+        <div class="sat-period-entry">
+            <span class="period-badge">P${i}</span>
+            <select name="period_${i}_subject" class="sat-subj-select" required>
+                <option value="">— Select subject —</option>${opts}
+            </select>
+        </div>`;
+    }
+    document.getElementById('period-subject-rows').innerHTML = html;
+}
+</script>
+
+<style>
+.edit-mode-banner {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: .88rem;
+    color: #795548;
+}
+</style>
+{% endblock %}

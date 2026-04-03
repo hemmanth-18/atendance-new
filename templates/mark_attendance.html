@@ -1,0 +1,400 @@
+{% extends 'base.html' %}
+{% block title %}Mark Attendance - {{ mark_date.strftime('%d %b') }}{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h2>✅ Mark Attendance</h2>
+        <p>{{ day_name }}, {{ mark_date.strftime('%d %B %Y') }}
+        {% if is_saturday %}<span class="saturday-badge">Saturday</span>{% endif %}</p>
+    </div>
+    <div class="date-selector">
+        <input type="date" id="date-picker" value="{{ mark_date.isoformat() }}" max="{{ today.isoformat() }}">
+        <button onclick="goToDate()" class="btn-secondary">Go</button>
+    </div>
+</div>
+
+{% if is_saturday %}
+<div class="saturday-info-banner">
+    📅 <strong>Saturday Schedule</strong> — Mark each period one by one.
+    Use the dropdown if a substitute teacher took a class.
+    <a href="{{ url_for('saturday_check', date=mark_date.isoformat()) }}" class="sat-change-link">⚙️ Change Saturday schedule</a>
+</div>
+{% endif %}
+
+{% if already_submitted %}
+{# ═══════════ ALREADY SUBMITTED VIEW ═══════════ #}
+<div class="submitted-card">
+    <div class="submitted-icon">✅</div>
+    <h3>Attendance already submitted!</h3>
+    <p>{{ day_name }}, {{ mark_date.strftime('%d %B %Y') }}</p>
+    <div class="submitted-summary">
+        {% for slot in slots %}
+        {% set tt_id    = slot[0] %}
+        {% set is_free  = slot[3] %}
+        {% set orig_id  = slot[4] %}
+        {% set orig_name= slot[5] %}
+        <div class="submitted-row">
+            <div class="submitted-left">
+                <span class="period-badge">P{{ slot[1] }}</span>
+                <span class="period-subject">
+                    {% if is_free %}
+                        🔓 Free Hour
+                        {% set fid = free_chosen.get(tt_id) %}
+                        {% if fid %}→ {{ subjects_dict.get(fid, '?') }}{% else %}(Skipped){% endif %}
+                    {% else %}
+                        {% set aid = sub_chosen.get(tt_id, orig_id) %}
+                        {{ subjects_dict.get(aid, orig_name) }}
+                        {% if aid and aid != orig_id %}
+                            <span class="sub-pill">↔ substituted</span>
+                        {% endif %}
+                    {% endif %}
+                </span>
+            </div>
+            <span class="status-badge status-{{ existing.get(tt_id, 'absent') }}">
+                {{ '✅ Present' if existing.get(tt_id) == 'present' else '❌ Absent' }}
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:12px;">
+        <a href="{{ url_for('mark_attendance', date=mark_date.isoformat(), edit=1) }}" class="btn-secondary">✏️ Edit</a>
+        <!-- Holiday button on submitted view -->
+        <form method="POST" style="margin:0;" onsubmit="return confirm('Mark this day as a Holiday? All attendance will be cleared.')">
+            <input type="hidden" name="action" value="holiday">
+            <button type="submit" class="btn-holiday">🏖️ Mark as Holiday</button>
+        </form>
+        <a href="{{ url_for('dashboard') }}" class="btn-primary">Dashboard</a>
+    </div>
+</div>
+
+{% else %}
+{# ═══════════ MARK FORM ═══════════ #}
+<form method="POST" id="mark-form">
+<input type="hidden" name="action" value="save" id="form-action">
+
+{# ── HOLIDAY BANNER ── #}
+<div class="holiday-banner">
+    <span>📅 Was this day a holiday or college closed?</span>
+    <button type="button" class="btn-holiday" onclick="markHoliday()">🏖️ Mark as Holiday</button>
+</div>
+
+{% if is_saturday %}
+{# ─── SATURDAY: step-by-step ─── #}
+<div class="saturday-mark-container">
+    <div class="saturday-steps-header">
+        <span>📅 Mark each period one by one</span>
+        <span id="progress-text">Period 1 of {{ slots|length }}</span>
+    </div>
+
+    {% for slot in slots %}
+    {% set tt_id    = slot[0] %}
+    {% set period   = slot[1] %}
+    {% set is_free  = slot[3] %}
+    {% set orig_id  = slot[4] %}
+    {% set orig_name= slot[5] %}
+    {% set li = loop.index %}
+
+    <div class="period-step {{ 'active-step' if loop.first else '' }}"
+         id="step_{{ li }}" data-step="{{ li }}" data-total="{{ slots|length }}">
+
+        <div class="step-header">
+            <div class="step-period-badge">Period {{ period }}</div>
+            {% if is_free %}<div class="free-badge">🔓 Free Hour</div>{% endif %}
+        </div>
+
+        {% if is_free %}
+        <div id="fhq_{{ li }}" class="free-hour-question">
+            <p>Did any class happen during this Free Hour?</p>
+            <div class="free-choice-btns">
+                <button type="button" class="btn-free-yes" onclick="showFree({{ li }},{{ tt_id }})">✅ Yes, class happened</button>
+                <button type="button" class="btn-free-no"  onclick="skipFree({{ li }},{{ tt_id }})">⏭️ No, skip it</button>
+            </div>
+        </div>
+        <div id="fpick_{{ li }}" class="free-subject-picker" style="display:none;">
+            <p>Which subject took this free hour?</p>
+            <select name="free_subject_{{ tt_id }}" class="free-subject-select">
+                <option value="">Select subject...</option>
+                {% for sid, sname in subjects_dict.items() %}
+                <option value="{{ sid }}" {{ 'selected' if free_chosen.get(tt_id)==sid }}>{{ sname }}</option>
+                {% endfor %}
+            </select>
+            <div class="present-absent-row">
+                <label class="toggle-label">
+                    <input type="radio" name="status_{{ tt_id }}" value="present" {{ 'checked' if existing.get(tt_id)=='present' }}>
+                    <span class="toggle-btn toggle-present {{ 'selected-present' if existing.get(tt_id)=='present' }}">✅ Present</span>
+                </label>
+                <label class="toggle-label">
+                    <input type="radio" name="status_{{ tt_id }}" value="absent" {{ 'checked' if existing.get(tt_id)!='present' }}>
+                    <span class="toggle-btn toggle-absent {{ 'selected-absent' if existing.get(tt_id)!='present' }}">❌ Absent</span>
+                </label>
+            </div>
+        </div>
+        <input type="hidden" name="skip_free_{{ tt_id }}" id="skip_free_{{ li }}" value="1">
+
+        {% else %}
+        <div class="subst-block">
+            <label class="subst-label">📖 Subject for this period
+                <span class="subst-hint-text">(change if a substitute teacher came)</span>
+            </label>
+            <select name="sub_subject_{{ tt_id }}" class="subst-select" id="subsel_sat_{{ li }}"
+                    onchange="satSubstHint(this, '{{ orig_id }}', '{{ orig_name }}', 'shint_sat_{{ li }}')">
+                <option value="FREE" {{ 'selected' if sub_chosen.get(tt_id) == 'FREE' }}>🔓 Free Hour (no class)</option>
+                {% for sid, sname in subjects_dict.items() %}
+                <option value="{{ sid }}" {{ 'selected' if sid == sub_chosen.get(tt_id, orig_id) }}>
+                    {{ sname }}{% if sid == orig_id %} ★{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <div class="subst-msg" id="shint_sat_{{ li }}">
+                {% set aid = sub_chosen.get(tt_id, orig_id) %}
+                {% if aid != orig_id %}
+                    <span class="subst-msg-active">↔ {{ subjects_dict.get(aid, '?') }} is substituting for {{ orig_name }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="present-absent-row">
+            <label class="toggle-label">
+                <input type="radio" name="status_{{ tt_id }}" value="present"
+                       {{ 'checked' if existing.get(tt_id)=='present' }} onchange="updToggle(this)">
+                <span class="toggle-btn toggle-present {{ 'selected-present' if existing.get(tt_id)=='present' }}">✅ Present</span>
+            </label>
+            <label class="toggle-label">
+                <input type="radio" name="status_{{ tt_id }}" value="absent"
+                       {{ 'checked' if existing.get(tt_id)!='present' }} onchange="updToggle(this)">
+                <span class="toggle-btn toggle-absent {{ 'selected-absent' if existing.get(tt_id)!='present' }}">❌ Absent</span>
+            </label>
+        </div>
+        {% endif %}
+
+        <div class="step-nav">
+            {% if not loop.last %}
+            <button type="button" class="btn-next-period" onclick="nextStep({{ li }})">
+                Next: Period {{ period + 1 }} →
+            </button>
+            {% else %}
+            <button type="submit" class="btn-primary btn-large btn-full">💾 Submit Saturday Attendance</button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+{# ─── WEEKDAY: all periods at once ─── #}
+<div class="mark-card">
+    <div class="mark-card-header">{{ slots|length }} class(es) today — {{ day_name }}</div>
+    <div class="periods-list">
+        {% for slot in slots %}
+        {% set tt_id    = slot[0] %}
+        {% set period   = slot[1] %}
+            {% set is_free  = slot[3] %}
+        {% set orig_id  = slot[4] %}
+        {% set orig_name= slot[5] %}
+
+        <div class="period-row {{ 'free-row' if is_free else '' }}">
+            <div class="period-left">
+                <span class="period-badge">P{{ period }}</span>
+                <div class="period-details">
+                    <span class="period-name">{{ '🔓 Free Hour' if is_free else orig_name }}</span>
+                </div>
+            </div>
+
+            <div class="period-right-area">
+                {% if is_free %}
+                <select name="free_subject_{{ tt_id }}" class="free-subject-select-inline"
+                        id="wfsel_{{ tt_id }}" onchange="syncFreeSkip('{{ tt_id }}')">
+                    <option value="">No class (skip)</option>
+                    {% for sid, sname in subjects_dict.items() %}
+                    <option value="{{ sid }}" {{ 'selected' if free_chosen.get(tt_id)==sid }}>{{ sname }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="skip_free_{{ tt_id }}" id="wskip_{{ tt_id }}"
+                       value="{{ '0' if free_chosen.get(tt_id) else '1' }}">
+                <div class="mini-toggle">
+                    <label class="toggle-label">
+                        <input type="radio" name="status_{{ tt_id }}" value="present"
+                               {{ 'checked' if existing.get(tt_id)=='present' }} onchange="updToggle(this)">
+                        <span class="toggle-btn toggle-present {{ 'selected-present' if existing.get(tt_id)=='present' }}">✅</span>
+                    </label>
+                    <label class="toggle-label">
+                        <input type="radio" name="status_{{ tt_id }}" value="absent"
+                               {{ 'checked' if existing.get(tt_id)!='present' }} onchange="updToggle(this)">
+                        <span class="toggle-btn toggle-absent {{ 'selected-absent' if existing.get(tt_id)!='present' }}">❌</span>
+                    </label>
+                </div>
+
+                {% else %}
+                <div class="wd-subst-wrap">
+                    <select name="sub_subject_{{ tt_id }}" class="wd-subst-select"
+                            onchange="wdSubstTag(this,'{{ orig_id }}','wtag_{{ tt_id }}')">
+                        <option value="FREE" {{ 'selected' if sub_chosen.get(tt_id) == 'FREE' }}>🔓 Free Hour (no class)</option>
+                        {% for sid, sname in subjects_dict.items() %}
+                        <option value="{{ sid }}" {{ 'selected' if sid == sub_chosen.get(tt_id, orig_id) }}>
+                            {{ sname }}{% if sid == orig_id %} ★{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <span class="sub-pill" id="wtag_{{ tt_id }}"
+                          style="{{ '' if (sub_chosen.get(tt_id) and sub_chosen.get(tt_id) != orig_id) else 'display:none' }}">
+                        ↔ sub
+                    </span>
+                </div>
+                <div class="status-toggle">
+                    <label class="toggle-label">
+                        <input type="radio" name="status_{{ tt_id }}" value="present"
+                               {{ 'checked' if existing.get(tt_id)=='present' }} onchange="updToggle(this)">
+                        <span class="toggle-btn toggle-present {{ 'selected-present' if existing.get(tt_id)=='present' }}">✅ Present</span>
+                    </label>
+                    <label class="toggle-label">
+                        <input type="radio" name="status_{{ tt_id }}" value="absent"
+                               {{ 'checked' if existing.get(tt_id)!='present' }} onchange="updToggle(this)">
+                        <span class="toggle-btn toggle-absent {{ 'selected-absent' if existing.get(tt_id)!='present' }}">❌ Absent</span>
+                    </label>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="quick-actions">
+        <button type="button" onclick="markAllPresent()" class="btn-all-present">✅ All Present</button>
+        <button type="button" onclick="markAllAbsent()" class="btn-all-absent">❌ All Absent</button>
+    </div>
+    <div style="padding:12px 16px 20px;">
+        <button type="submit" class="btn-primary btn-full btn-large">💾 Submit Attendance</button>
+    </div>
+</div>
+{% endif %}
+</form>
+
+<script>
+/* ── Toggle visual highlight ── */
+function updToggle(radio) {
+    const row = radio.closest('.period-row,.period-step,.present-absent-row');
+    if (!row) return;
+    row.querySelectorAll('.toggle-present').forEach(b => b.classList.remove('selected-present'));
+    row.querySelectorAll('.toggle-absent').forEach(b => b.classList.remove('selected-absent'));
+    radio.nextElementSibling.classList.add(radio.value === 'present' ? 'selected-present' : 'selected-absent');
+}
+document.querySelectorAll('input[type="radio"]').forEach(r => r.addEventListener('change', () => updToggle(r)));
+
+/* ── Mark as Holiday ── */
+function markHoliday() {
+    if (confirm('Mark this day as a Holiday? All attendance for this day will be cleared and it will be removed from pending.')) {
+        document.getElementById('form-action').value = 'holiday';
+        document.getElementById('mark-form').submit();
+    }
+}
+
+/* ── Saturday step navigation ── */
+function nextStep(cur) {
+    document.getElementById('step_' + cur).classList.remove('active-step');
+    document.getElementById('step_' + cur).classList.add('done-step');
+    const next = cur + 1;
+    const el = document.getElementById('step_' + next);
+    if (el) {
+        el.classList.add('active-step');
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById('progress-text').textContent = `Period ${next} of ${el.dataset.total}`;
+    }
+}
+
+/* ── Free hour (Saturday step) ── */
+function showFree(li, ttId) {
+    document.getElementById('fhq_' + li).style.display = 'none';
+    document.getElementById('fpick_' + li).style.display = 'block';
+    document.getElementById('skip_free_' + li).value = '0';
+}
+function skipFree(li, ttId) {
+    document.getElementById('fhq_' + li).style.display = 'none';
+    document.getElementById('skip_free_' + li).value = '1';
+    setTimeout(() => {
+        const btn = document.getElementById('step_' + li).querySelector('.btn-next-period');
+        if (btn) btn.click();
+    }, 300);
+}
+
+/* ── Free hour skip sync (weekday) ── */
+function syncFreeSkip(ttId) {
+    const sel = document.getElementById('wfsel_' + ttId);
+    document.getElementById('wskip_' + ttId).value = sel.value ? '0' : '1';
+}
+
+/* ── Substitution hint (Saturday) ── */
+function satSubstHint(sel, origId, origName, hintId) {
+    const h = document.getElementById(hintId);
+    if (!h) return;
+    if (sel.value && sel.value !== origId) {
+        const newName = sel.options[sel.selectedIndex].text.replace(' ★', '');
+        h.innerHTML = `<span class="subst-msg-active">↔ ${newName} is substituting for ${origName}</span>`;
+    } else {
+        h.innerHTML = '';
+    }
+}
+
+/* ── Substitution tag (weekday) ── */
+function wdSubstTag(sel, origId, tagId) {
+    const t = document.getElementById(tagId);
+    if (!t) return;
+    if (sel.value === 'FREE') {
+        t.style.display = 'inline-block';
+        t.textContent = '🔓 free';
+    } else if (sel.value && sel.value !== origId) {
+        t.style.display = 'inline-block';
+        t.textContent = '↔ sub';
+    } else {
+        t.style.display = 'none';
+    }
+}
+
+/* ── Mark all (weekday) ── */
+function markAllPresent() {
+    document.querySelectorAll('input[value="present"]').forEach(r => { r.checked = true; updToggle(r); });
+}
+function markAllAbsent() {
+    document.querySelectorAll('input[value="absent"]').forEach(r => { r.checked = true; updToggle(r); });
+}
+
+/* ── Date picker — Saturday goes to /saturday ── */
+function goToDate() {
+    const d = document.getElementById('date-picker').value;
+    if (!d) return;
+    const day = new Date(d + 'T00:00:00').getDay();
+    window.location.href = (day === 6) ? '/saturday?date=' + d : '/mark?date=' + d;
+}
+</script>
+
+<style>
+.holiday-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 10px;
+    padding: 10px 16px;
+    margin-bottom: 14px;
+    font-size: .88rem;
+    color: #7a5c00;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.btn-holiday {
+    background: #ff7043;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 16px;
+    font-size: .84rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s;
+    text-decoration: none;
+    display: inline-block;
+}
+.btn-holiday:hover { opacity: .85; }
+</style>
+{% endif %}
+{% endblock %}

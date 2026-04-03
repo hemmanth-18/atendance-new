@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Edit Timetable - AttendSmart{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h2>✏️ Edit Timetable</h2>
+        <p>Change subjects for any period — your existing attendance records won't be affected.</p>
+    </div>
+    <a href="{{ url_for('view_timetable') }}" class="btn-secondary">← Cancel</a>
+</div>
+
+<div class="edit-tt-banner">
+    💡 Only the <strong>subject assigned to each slot</strong> will change. Attendance you've already marked stays safe.
+</div>
+
+<form method="POST" id="tt-edit-form">
+<div class="tt-setup-container">
+    {% for day_cfg in day_configs %}
+    {% set day_idx = day_cfg[0] %}
+    {% set total_periods = day_cfg[1] %}
+    {% set day_current = current.get(day_idx, {}) %}
+    <div class="tt-day-card">
+        <div class="tt-day-header">
+            <span class="tt-day-name">{{ day_names[day_idx] }}</span>
+            <span class="tt-day-periods">{{ total_periods }} periods</span>
+            {% if day_idx == 5 %}<span class="saturday-badge">Saturday</span>{% endif %}
+        </div>
+        <div class="tt-periods">
+            {% for period in range(1, total_periods + 1) %}
+            {% set cur_val = day_current.get(period, '') %}
+            <div class="tt-period-row" id="row_{{ day_idx }}_{{ period }}">
+                <span class="tt-period-num">P{{ period }}</span>
+                <span class="tt-cur-label">
+                    {% if cur_val == 'FREE' %}<span class="cur-free">🔓 Free</span>
+                    {% elif cur_val %}<span class="cur-subject">{{ cur_val }}</span>
+                    {% else %}<span class="cur-empty">No class</span>
+                    {% endif %}
+                </span>
+                <select name="slot_{{ day_idx }}_{{ period }}"
+                        class="tt-subject-select"
+                        data-orig="{{ cur_val }}"
+                        onchange="markChanged(this, {{ day_idx }}, {{ period }})">
+                    <option value="" {% if cur_val == '' %}selected{% endif %}>— No Class —</option>
+                    <option value="FREE" {% if cur_val == 'FREE' %}selected{% endif %}>🔓 Free Hour</option>
+                    {% for subj in subjects %}
+                    <option value="{{ subj[1] }}" {% if cur_val == subj[1] %}selected{% endif %}>{{ subj[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="setup-actions">
+    <a href="{{ url_for('view_timetable') }}" class="btn-secondary">Cancel</a>
+    <button type="submit" class="btn-primary btn-large">💾 Save Timetable</button>
+</div>
+</form>
+
+<script>
+function markChanged(sel, day, period) {
+    const row = document.getElementById('row_' + day + '_' + period);
+    if (!row) return;
+    if (sel.value !== sel.dataset.orig) {
+        row.classList.add('row-changed');
+    } else {
+        row.classList.remove('row-changed');
+    }
+}
+</script>
+
+<style>
+.edit-tt-banner {
+    background: #f0f4ff;
+    border: 1px solid #d0d8ff;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    font-size: .88rem;
+    color: #445;
+}
+.tt-period-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 6px;
+    border-bottom: 1px solid #f5f5f5;
+    border-radius: 6px;
+    transition: background .15s;
+}
+.tt-period-row:last-child { border-bottom: none; }
+.tt-period-info {
+    display: contents; /* let children sit in their own grid columns */
+}
+.tt-period-num {
+    font-weight: 700;
+    font-size: .82rem;
+    color: #667eea;
+    background: #f0f2ff;
+    padding: 3px 5px;
+    border-radius: 6px;
+    text-align: center;
+    white-space: nowrap;
+}
+.tt-cur-label {
+    font-size: .78rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cur-subject    { color: #27ae60; font-weight: 600; }
+.cur-free       { color: #f39c12; font-weight: 600; }
+.cur-empty      { color: #bbb; }
+.tt-subject-select {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid #dde;
+    border-radius: 8px;
+    font-size: .82rem;
+    box-sizing: border-box;
+}
+.row-changed    { background: #fffbea; outline: 2px solid #f1c40f; border-radius: 8px; }
+</style>
+{% endblock %}

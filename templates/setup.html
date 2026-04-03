@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% block title %}Setup Timetable - AttendSmart{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <h2>⚙️ Setup Your Timetable</h2>
+    <p>Step 2 of 2 — Enter your weekly class schedule. Select a subject for each slot.</p>
+</div>
+
+<form method="POST" id="setup-form">
+
+    <!-- SUBJECT SECTION -->
+    <div class="card mb-20">
+        <h3>📚 Step 1: Add Your Subjects</h3>
+        <p class="hint">Enter all subject names first, then assign them to slots below.</p>
+
+        <div id="subjects-list">
+            <div class="subject-entry">
+                <input type="text" 
+                       name="subject_name" 
+                       placeholder="e.g. Mathematics" 
+                       class="subject-input">
+                <button type="button" 
+                        class="btn-remove-subj" 
+                        onclick="removeSubject(this)">✕</button>
+            </div>
+        </div>
+
+        <button type="button" 
+                class="btn-add-subject" 
+                onclick="addSubject()">+ Add Another Subject</button>
+    </div>
+
+
+    <!-- TIMETABLE GRID -->
+    <div class="card mb-20">
+        <h3>🗓️ Step 2: Fill Your Weekly Timetable</h3>
+        <p class="hint">Select which subject you have in each time slot. Leave empty if no class.</p>
+
+        <div class="timetable-scroll">
+        <table class="timetable-grid">
+            <thead>
+                <tr>
+                    <th class="slot-header">Time / Day</th>
+                    {% for day in days %}
+                        <th>{{ day }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for slot in slots %}
+                {% set slot_idx = loop.index0 %}
+                <tr>
+                    <td class="slot-time">{{ slot }}</td>
+
+                    {% for day_idx in range(6) %}
+                    <td>
+                        <select name="slot_{{ day_idx }}_{{ slot_idx }}" 
+                                class="slot-select">
+                            <option value="">—</option>
+                        </select>
+                    </td>
+                    {% endfor %}
+
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <button type="submit" 
+            class="btn-primary btn-full btn-large">
+        💾 Save Timetable & Start
+    </button>
+</form>
+
+
+<script>
+// ===============================
+// Get subject names
+// ===============================
+function getSubjects() {
+    const inputs = document.querySelectorAll('input[name="subject_name"]');
+    return Array.from(inputs)
+        .map(i => i.value.trim())
+        .filter(v => v !== '');
+}
+
+
+// ===============================
+// Update all dropdowns
+// ===============================
+function updateDropdowns() {
+    const subjects = getSubjects();
+    const selects = document.querySelectorAll('.slot-select');
+
+    selects.forEach(sel => {
+        const current = sel.value;
+        sel.innerHTML = '<option value="">—</option>';
+
+        subjects.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === current) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    });
+}
+
+
+// ===============================
+// Add subject input
+// ===============================
+function addSubject() {
+    const list = document.getElementById('subjects-list');
+    const div = document.createElement('div');
+    div.className = 'subject-entry';
+
+    div.innerHTML = `
+        <input type="text"
+               name="subject_name"
+               placeholder="Subject name"
+               class="subject-input">
+        <button type="button"
+                class="btn-remove-subj"
+                onclick="removeSubject(this)">✕</button>
+    `;
+
+    list.appendChild(div);
+    div.querySelector('input').addEventListener('input', updateDropdowns);
+}
+
+
+// ===============================
+// Remove subject input
+// ===============================
+function removeSubject(btn) {
+    const entries = document.querySelectorAll('.subject-entry');
+    if (entries.length > 1) {
+        btn.parentElement.remove();
+        updateDropdowns();
+    }
+}
+
+
+// ===============================
+// Listen to typing
+// ===============================
+document.querySelectorAll('input[name="subject_name"]').forEach(input => {
+    input.addEventListener('input', updateDropdowns);
+});
+
+
+// ===============================
+// Form Validation
+// ===============================
+document.getElementById('setup-form').addEventListener('submit', function(e) {
+
+    const subjects = getSubjects();
+
+    if (subjects.length === 0) {
+        e.preventDefault();
+        alert('Please add at least one subject!');
+        return;
+    }
+
+    const selects = document.querySelectorAll('.slot-select');
+    const hasSlot = Array.from(selects).some(s => s.value !== '');
+
+    if (!hasSlot) {
+        e.preventDefault();
+        alert('Please assign at least one subject to a time slot!');
+    }
+});
+</script>
+
+{% endblock %}

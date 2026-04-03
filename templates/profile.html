@@ -1,0 +1,368 @@
+{% extends 'base.html' %}
+{% block title %}Profile - AttendSmart{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h2>👤 My Profile</h2>
+        <p>Manage your account, photo, and semesters</p>
+    </div>
+    <a href="{{ url_for('dashboard') }}" class="btn-secondary">← Dashboard</a>
+</div>
+
+<div class="profile-grid">
+
+    {# ── LEFT: Avatar + quick info ── #}
+    <div class="profile-left-col">
+        <div class="profile-avatar-card">
+            <div class="profile-avatar-wrap" onclick="document.getElementById('photo-input').click()" title="Click to change photo">
+                {% if photo %}
+                    <img src="{{ url_for('static', filename='uploads/' + photo) }}"
+                         class="profile-avatar-img" id="avatar-preview" alt="Profile photo">
+                {% else %}
+                    <div class="profile-avatar-initials" id="avatar-initials">
+                        {{ user[1][0]|upper if user[1] else '?' }}
+                    </div>
+                    <img src="" class="profile-avatar-img" id="avatar-preview" style="display:none;" alt="Profile photo">
+                {% endif %}
+                <div class="profile-avatar-overlay">📷 Change</div>
+            </div>
+            <h3 class="profile-name">{{ user[1] }}</h3>
+            <p class="profile-email">{{ user[2] }}</p>
+            {% for sem in all_sems %}{% if sem[7]==1 %}
+            <div class="profile-sem-badge">📚 {{ sem[3] }} • {{ sem[4] }}</div>
+            {% endif %}{% endfor %}
+        </div>
+    </div>
+
+    {# ── RIGHT: Edit forms ── #}
+    <div class="profile-right-col">
+
+        {# ── Edit Profile ── #}
+        <div class="profile-section-card">
+            <div class="profile-section-title">✏️ Edit Profile</div>
+            <form method="POST" class="profile-form">
+                <input type="hidden" name="action" value="update_profile">
+
+                <div class="form-group">
+                    <label>Display Name</label>
+                    <input type="text" name="name" value="{{ user[1] }}" placeholder="Your name">
+                </div>
+
+                <div class="profile-form-divider">Change Password (leave blank to keep current)</div>
+                <div class="form-group">
+                    <label>Current Password</label>
+                    <input type="password" name="current_password" placeholder="Enter current password">
+                </div>
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input type="password" name="new_password" placeholder="New password (min 6 chars)">
+                </div>
+
+                <button type="submit" class="btn-primary" style="margin-top:8px;">💾 Save Changes</button>
+            </form>
+        </div>
+
+        {# ── Semesters ── #}
+        <div class="profile-section-card">
+            <div class="profile-section-title">📅 Semesters</div>
+
+            {% if all_sems %}
+            <div class="sem-list">
+                {% for sem in all_sems %}
+                <div class="sem-row {{ 'sem-active' if sem[7]==1 else '' }}">
+                    <div class="sem-row-left">
+                        <div class="sem-row-label">
+                            {{ sem[3] }}
+                            {% if sem[7]==1 %}<span class="sem-active-pill">● Active</span>{% endif %}
+                        </div>
+                        <div class="sem-row-dates">{{ sem[4] or '—' }} &nbsp;|&nbsp; {{ sem[5].strftime('%d %b %Y') if sem[5] else '?' }} → {{ sem[6].strftime('%d %b %Y') if sem[6] else '?' }}</div>
+                    </div>
+                    <div class="sem-row-actions">
+                        {% if sem[7] != 1 %}
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="action" value="switch_semester">
+                            <input type="hidden" name="sem_id" value="{{ sem[0] }}">
+                            <button type="submit" class="sem-btn-switch" title="Make active">▶ Use</button>
+                        </form>
+                        {% endif %}
+                        <button class="sem-btn-edit" onclick="toggleEditSem({{ sem[0] }})" title="Edit">✏️</button>
+                        <button class="sem-btn-stats" onclick="loadSemStats({{ sem[0] }}, '{{ sem[3] }}')" title="View stats">📊</button>
+                    </div>
+                </div>
+
+                {# Inline edit form #}
+                <div class="sem-edit-form" id="sem-edit-{{ sem[0] }}" style="display:none;">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="edit_semester">
+                        <input type="hidden" name="sem_id" value="{{ sem[0] }}">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Label</label>
+                                <input type="text" name="semester_label" value="{{ sem[3] }}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Branch</label>
+                                <input type="text" name="branch" value="{{ sem[4] or '' }}">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Start Date</label>
+                                <input type="date" name="sem_start" value="{{ sem[5].isoformat() if sem[5] else '' }}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>End Date</label>
+                                <input type="date" name="sem_end" value="{{ sem[6].isoformat() if sem[6] else '' }}" required>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:8px;margin-top:6px;">
+                            <button type="submit" class="btn-primary" style="padding:7px 16px;font-size:.85rem;">Save</button>
+                            <button type="button" class="btn-secondary" style="padding:7px 14px;font-size:.85rem;" onclick="toggleEditSem({{ sem[0] }})">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color:#aaa;font-size:.88rem;padding:8px 0;">No semesters yet.</p>
+            {% endif %}
+
+            <button class="btn-secondary" style="margin-top:12px;width:100%;" onclick="toggleAddSem()">+ Add New Semester</button>
+            <div id="add-sem-form" style="display:none;margin-top:14px;padding:14px;background:#f8f9ff;border-radius:10px;border:1px solid #e0e4ff;">
+                <form method="POST" class="profile-form">
+                    <input type="hidden" name="action" value="add_semester">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Semester</label>
+                            <select name="semester_number" id="add-sem-num" onchange="updateSemLabel(this.value)">
+                                {% for i in range(1, total_sems+1) %}
+                                <option value="{{ i }}">Semester {{ i }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Label (e.g. Sem 3 - 2025)</label>
+                            <input type="text" name="semester_label" id="add-sem-label" placeholder="Sem 1 - 2025" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Branch / Department</label>
+                        <input type="text" name="branch" placeholder="e.g. CSE, ECE...">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Start Date</label>
+                            <input type="date" name="sem_start" required>
+                        </div>
+                        <div class="form-group">
+                            <label>End Date</label>
+                            <input type="date" name="sem_end" required>
+                        </div>
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;margin-top:4px;">
+                        <input type="checkbox" name="make_active" value="1" id="make-active-chk" style="width:auto;" onchange="toggleNewSemWarning(this)">
+                        <label for="make-active-chk" style="font-weight:500;color:#555;">Make this the active semester</label>
+                    </div>
+                    <div id="new-sem-warning" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;margin-top:8px;font-size:.83rem;color:#795548;">
+                        ⚠️ <strong>Heads up!</strong> Making this active will clear the current timetable and redirect you to <strong>set up a new timetable</strong> for this semester. Your existing attendance records are safely preserved.
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:10px;">
+                        <button type="submit" class="btn-primary">Add Semester</button>
+                        <button type="button" class="btn-secondary" onclick="toggleAddSem()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>{# end right col #}
+</div>
+
+{# ── Semester Stats Modal ── #}
+<div id="sem-stats-modal" class="sem-modal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+    <div class="sem-modal-box">
+        <div class="sem-modal-header">
+            <span id="sem-modal-title">Semester Stats</span>
+            <button onclick="document.getElementById('sem-stats-modal').style.display='none'" class="sem-modal-close">✕</button>
+        </div>
+        <div id="sem-modal-body" style="padding:16px;">
+            <div style="text-align:center;color:#aaa;padding:20px;">Loading…</div>
+        </div>
+    </div>
+</div>
+
+{# Standalone file input — NOT inside any form #}
+<input type="file" id="photo-input" accept="image/png,image/jpeg,image/gif,image/webp"
+       style="display:none;" onchange="handlePhotoSelect(this)">
+
+<script>
+/* ── Photo instant upload ── */
+function handlePhotoSelect(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    if (file.size > 5 * 1024 * 1024) {
+        showPhotoStatus('❌ File too large (max 5MB)', 'error'); return;
+    }
+    // Show preview immediately before upload finishes
+    const reader = new FileReader();
+    reader.onload = e => setAvatarEverywhere(e.target.result);
+    reader.readAsDataURL(file);
+
+    // Upload to server
+    showPhotoStatus('⏳ Uploading...', 'info');
+    const fd = new FormData();
+    fd.append('photo', file);
+    fetch('/api/upload_photo', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                showPhotoStatus('✅ Photo saved!', 'success');
+                setAvatarEverywhere(data.url);
+            } else {
+                showPhotoStatus('❌ ' + (data.error || 'Upload failed'), 'error');
+            }
+        })
+        .catch(() => showPhotoStatus('❌ Upload failed — check your connection', 'error'));
+}
+
+function setAvatarEverywhere(src) {
+    // Big profile avatar
+    const img  = document.getElementById('avatar-preview');
+    const init = document.getElementById('avatar-initials');
+    if (img)  { img.src = src; img.style.display = 'block'; }
+    if (init) { init.style.display = 'none'; }
+    // Navbar avatar
+    const navImg  = document.querySelector('.nav-avatar-img');
+    const navInit = document.querySelector('.nav-avatar-initials');
+    if (navImg)  { navImg.src = src; navImg.style.display = 'block'; }
+    if (navInit) { navInit.style.display = 'none'; }
+}
+
+function showPhotoStatus(msg, type) {
+    let el = document.getElementById('photo-status');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'photo-status';
+        el.style.cssText = 'margin-top:8px;font-size:.82rem;font-weight:600;text-align:center;min-height:20px;transition:opacity .3s;';
+        document.querySelector('.profile-avatar-card').appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.color = type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : '#667eea';
+    if (type === 'success') setTimeout(() => { el.textContent = ''; }, 3000);
+}
+
+/* ── New semester active warning ── */
+function toggleNewSemWarning(chk) {
+    document.getElementById('new-sem-warning').style.display = chk.checked ? 'block' : 'none';
+}
+
+/* ── Semester edit toggle ── */
+function toggleEditSem(id) {
+    const el = document.getElementById('sem-edit-' + id);
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function toggleAddSem() {
+    const el = document.getElementById('add-sem-form');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function updateSemLabel(val) {
+    const lbl = document.getElementById('add-sem-label');
+    if (lbl && !lbl.dataset.edited) {
+        const yr = new Date().getFullYear();
+        lbl.value = 'Sem ' + val + ' - ' + yr;
+    }
+}
+document.addEventListener('DOMContentLoaded', () => {
+    const lbl = document.getElementById('add-sem-label');
+    if (lbl) lbl.addEventListener('input', () => { lbl.dataset.edited = '1'; });
+    updateSemLabel(1);
+});
+
+/* ── Semester stats modal ── */
+function loadSemStats(semId, semLabel) {
+    document.getElementById('sem-modal-title').textContent = semLabel + ' — Attendance';
+    document.getElementById('sem-modal-body').innerHTML = '<div style="text-align:center;color:#aaa;padding:20px;">Loading…</div>';
+    document.getElementById('sem-stats-modal').style.display = 'flex';
+    fetch('/api/semester_stats/' + semId)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.subjects || data.subjects.length === 0) {
+                document.getElementById('sem-modal-body').innerHTML =
+                    '<p style="color:#aaa;text-align:center;padding:20px;">No attendance records for this semester.</p>';
+                return;
+            }
+            let html = `<div class="sem-stats-dates">${data.start} → ${data.end}</div><div class="sem-stats-list">`;
+            data.subjects.forEach(s => {
+                const pct   = s.pct;
+                const color = pct >= 75 ? '#27ae60' : pct >= 60 ? '#e67e22' : '#e74c3c';
+                html += `
+                <div class="sem-stat-row">
+                    <div class="sem-stat-name">${s.subject}</div>
+                    <div class="sem-stat-bar-wrap">
+                        <div class="sem-stat-bar" style="width:${Math.min(pct,100)}%;background:${color};"></div>
+                    </div>
+                    <div class="sem-stat-nums" style="color:${color}">${s.attended}/${s.total} &nbsp;<strong>${pct}%</strong></div>
+                </div>`;
+            });
+            html += '</div>';
+            document.getElementById('sem-modal-body').innerHTML = html;
+        })
+        .catch(() => {
+            document.getElementById('sem-modal-body').innerHTML =
+                '<p style="color:#e74c3c;text-align:center;padding:20px;">Failed to load stats.</p>';
+        });
+}
+</script>
+
+<style>
+/* Profile layout */
+.profile-grid { display:grid; grid-template-columns:260px 1fr; gap:20px; align-items:start; }
+@media(max-width:700px) { .profile-grid { grid-template-columns:1fr; } }
+
+/* Avatar card */
+.profile-avatar-card { background:#fff; border-radius:16px; padding:28px 20px; text-align:center; box-shadow:0 3px 14px rgba(0,0,0,.08); }
+.profile-avatar-wrap { position:relative; width:96px; height:96px; margin:0 auto 14px; cursor:pointer; border-radius:50%; overflow:hidden; background:linear-gradient(135deg,#667eea,#764ba2); }
+.profile-avatar-img  { width:96px; height:96px; object-fit:cover; border-radius:50%; display:block; }
+.profile-avatar-initials { width:96px; height:96px; display:flex; align-items:center; justify-content:center; font-size:2.2rem; color:#fff; font-weight:700; border-radius:50%; }
+.profile-avatar-overlay { position:absolute; inset:0; background:rgba(0,0,0,.45); color:#fff; font-size:.78rem; display:flex; align-items:center; justify-content:center; opacity:0; transition:.2s; border-radius:50%; }
+.profile-avatar-wrap:hover .profile-avatar-overlay { opacity:1; }
+.profile-name     { font-size:1.1rem; font-weight:700; color:#333; margin-bottom:4px; }
+.profile-email    { font-size:.82rem; color:#aaa; margin-bottom:10px; }
+.profile-sem-badge { display:inline-block; background:#f0f2ff; color:#667eea; border-radius:20px; padding:4px 12px; font-size:.78rem; font-weight:600; margin-top:6px; }
+
+/* Section cards */
+.profile-section-card  { background:#fff; border-radius:14px; padding:22px; box-shadow:0 3px 12px rgba(0,0,0,.07); margin-bottom:16px; }
+.profile-section-title { font-size:.97rem; font-weight:700; color:#333; margin-bottom:16px; padding-bottom:10px; border-bottom:2px solid #f0f0f0; }
+.profile-form          { display:flex; flex-direction:column; gap:11px; }
+.profile-form-divider  { font-size:.78rem; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:.06em; margin-top:4px; padding-top:8px; border-top:1px dashed #eee; }
+
+/* Semester list */
+.sem-list     { display:flex; flex-direction:column; gap:0; }
+.sem-row      { padding:12px 4px; border-bottom:1px solid #f5f5f5; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.sem-row:last-child { border-bottom:none; }
+.sem-active   { background:#f8faff; border-radius:8px; padding:12px 10px; }
+.sem-row-left { flex:1; min-width:0; }
+.sem-row-label { font-size:.9rem; font-weight:600; color:#333; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.sem-active-pill { font-size:.68rem; background:#667eea; color:#fff; border-radius:20px; padding:2px 8px; font-weight:600; }
+.sem-row-dates   { font-size:.78rem; color:#aaa; margin-top:2px; }
+.sem-row-actions { display:flex; gap:6px; flex-shrink:0; }
+.sem-btn-switch { background:#e8f5e9; color:#27ae60; border:none; border-radius:6px; padding:5px 10px; font-size:.8rem; cursor:pointer; font-weight:600; }
+.sem-btn-edit   { background:#f0f2ff; color:#667eea; border:none; border-radius:6px; padding:5px 9px; font-size:.8rem; cursor:pointer; }
+.sem-btn-stats  { background:#fff3cd; color:#856404; border:none; border-radius:6px; padding:5px 9px; font-size:.8rem; cursor:pointer; }
+.sem-edit-form  { background:#f8f9ff; border-radius:10px; padding:14px; margin:6px 0 8px; border:1px solid #e0e4ff; }
+
+/* Stats modal */
+.sem-modal     { position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:999; }
+.sem-modal-box { background:#fff; border-radius:16px; width:100%; max-width:520px; max-height:80vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+.sem-modal-header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #f0f0f0; font-weight:700; font-size:1rem; }
+.sem-modal-close  { background:none; border:none; font-size:1.1rem; cursor:pointer; color:#aaa; padding:4px 8px; border-radius:6px; }
+.sem-modal-close:hover { background:#f5f5f5; }
+.sem-stats-dates { font-size:.82rem; color:#aaa; padding:0 0 12px; border-bottom:1px solid #f5f5f5; margin-bottom:12px; }
+.sem-stats-list  { display:flex; flex-direction:column; gap:12px; }
+.sem-stat-row    { display:grid; grid-template-columns:1fr 120px 90px; align-items:center; gap:10px; }
+.sem-stat-name   { font-size:.88rem; font-weight:600; color:#333; }
+.sem-stat-bar-wrap { height:8px; background:#f0f0f0; border-radius:6px; overflow:hidden; }
+.sem-stat-bar    { height:100%; border-radius:6px; transition:width .4s; }
+.sem-stat-nums   { font-size:.82rem; color:#666; text-align:right; }
+</style>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Subjects - AttendSmart{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>📚 My Subjects</h2>
+    <p>Manage your subjects here</p>
+</div>
+
+<div class="two-col">
+    <!-- Add Subject Form -->
+    <div class="card">
+        <h3>Add New Subject</h3>
+        <form method="POST" class="auth-form">
+            <div class="form-group">
+                <label>Subject Name (Subject code)</label>
+                <input type="text" name="subject_name" placeholder="e.g. Mathematics, DBMS" required>
+            </div>
+            <div class="form-group">
+                <label>Classes Per Week</label>
+                <input type="number" name="classes_per_week" placeholder="e.g. 3" min="1" max="7" required>
+            </div>
+            <button type="submit" class="btn-primary btn-full">Add Subject</button>
+        </form>
+    </div>
+
+    <!-- Subject List -->
+    <div class="card">
+        <h3>Your Subjects ({{ subjects | length }})</h3>
+        {% if subjects %}
+        <div class="subject-list">
+            {% for s in subjects %}
+            <div class="subject-list-item">
+                <div>
+                    <strong>{{ s[2] }}</strong>
+                    <span class="subject-meta">{{ s[3] }} classes/week</span>
+                </div>
+                <a href="{{ url_for('delete_subject', subject_id=s[0]) }}"
+                   class="btn-delete"
+                   onclick="return confirm('Delete {{ s[2] }}? All attendance records will be lost!')">
+                   🗑️
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-text">No subjects added yet. Add your first subject!</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

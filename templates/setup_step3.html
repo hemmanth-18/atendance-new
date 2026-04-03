@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Setup - Fill Timetable{% endblock %}
+{% block content %}
+
+<div class="setup-progress">
+    <div class="step done">1</div><div class="step-line done"></div>
+    <div class="step done">2</div><div class="step-line done"></div>
+    <div class="step done">3</div><div class="step-line done"></div>
+    <div class="step active">4</div>
+</div>
+
+<div class="page-header">
+    <h2>🗓️ Step 4: Fill Your Timetable</h2>
+    <p>For each period, select the subject. Use <strong>"Free Hour"</strong> for optional slots where any staff may take class.</p>
+</div>
+
+<div class="free-hour-info">
+    <span>ℹ️</span>
+    <div>
+        <strong>What is Free Hour?</strong>
+        A Free Hour is a slot where no fixed subject is assigned — any staff may or may not take class that day.
+        When marking attendance on that day, you'll be asked <em>which subject took the free hour</em> (or if it was skipped).
+    </div>
+</div>
+
+<form method="POST" id="tt-form">
+<div class="tt-setup-container">
+    {% for day_cfg in day_configs %}
+    {% set day_idx = day_cfg[0] %}
+    {% set total_periods = day_cfg[1] %}
+    <div class="tt-day-card">
+        <div class="tt-day-header">
+            <span class="tt-day-name">{{ day_names[day_idx] }}</span>
+            <span class="tt-day-periods">{{ total_periods }} periods</span>
+            {% if day_idx == 5 %}<span class="saturday-badge">Saturday</span>{% endif %}
+        </div>
+        <div class="tt-periods">
+            {% for period in range(1, total_periods + 1) %}
+            <div class="tt-period-row">
+                <div class="tt-period-info">
+                    <span class="tt-period-num">P{{ period }}</span>                </div>
+                <select name="slot_{{ day_idx }}_{{ period }}" class="tt-subject-select">
+                    <option value="">— No Class —</option>
+                    <option value="FREE" class="free-option">🔓 Free Hour</option>
+                    {% for subj in subjects %}
+                    <option value="{{ subj[1] }}">{{ subj[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="setup-actions">
+    <a href="{{ url_for('setup_step2') }}" class="btn-secondary">← Back</a>
+    <button type="submit" class="btn-primary btn-large">💾 Save Timetable & Start!</button>
+</div>
+</form>
+{% endblock %}

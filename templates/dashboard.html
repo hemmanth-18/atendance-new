@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - AttendSmart{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h2>Hello, {{ user[1] }} 👋</h2>
+        <p>Sem {{ user[4] }} • {{ user[5] }}{% if user[6] and user[7] %} • {{ user[6].strftime('%d %b') }} → {{ user[7].strftime('%d %b %Y') }}{% endif %}</p>
+    </div>
+    {% if is_saturday %}
+    <a href="{{ url_for('saturday_check', date=today.isoformat()) }}" class="btn-primary">✅ Mark Today</a>
+    {% else %}
+    <a href="{{ url_for('mark_attendance') }}" class="btn-primary">✅ Mark Today</a>
+    {% endif %}
+</div>
+
+{% if show_saturday_prompt %}
+<div class="reminder-banner saturday-prompt-banner">
+    <div>
+        📅 <strong>It's Saturday — is there class today?</strong>
+        <span>Set up your Saturday schedule first.</span>
+    </div>
+    <a href="{{ url_for('saturday_check', date=today.isoformat()) }}" class="btn-mark-now">Setup & Mark →</a>
+</div>
+{% elif show_reminder %}
+<div class="reminder-banner">
+    <div>
+        {% if is_saturday %}
+        📅 <strong>Saturday — {{ today_class_count }} period(s) to mark!</strong>
+        <span>Mark each period before midnight.</span>
+        {% else %}
+        🔔 <strong>{{ today_class_count }} class(es) today need attendance!</strong>
+        <span>Mark before midnight to keep records accurate.</span>
+        {% endif %}
+    </div>
+    {% if is_saturday %}
+    <a href="{{ url_for('saturday_check', date=today.isoformat()) }}" class="btn-mark-now">Mark Now →</a>
+    {% else %}
+    <a href="{{ url_for('mark_attendance') }}" class="btn-mark-now">Mark Now →</a>
+    {% endif %}
+</div>
+{% elif today_submitted %}
+<div class="success-banner">✅ Today's attendance submitted. Great job!</div>
+{% elif today_class_count > 0 %}
+<div class="info-banner">📋 {{ today_class_count }} class(es) today. Mark attendance anytime or wait for 9 PM reminder.</div>
+{% endif %}
+
+{% if pending_count > 0 %}
+<div class="warning-banner">
+    ⚠️ <strong>{{ pending_count }} past date(s)</strong> with unmarked attendance.
+    <a href="{{ url_for('past_dates') }}">Mark them →</a>
+</div>
+{% endif %}
+
+<div class="info-banner" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <span>📖 Want to fix a mistake? Edit any previously submitted attendance.</span>
+    <a href="{{ url_for('attendance_history') }}" class="btn-secondary" style="font-size:.82rem;padding:6px 14px;white-space:nowrap;">Edit History →</a>
+</div>
+
+<!-- Summary -->
+<div class="summary-cards">
+    <div class="summary-card card-danger"><span class="summary-number">{{ danger }}</span><span class="summary-label">🚨 Danger</span></div>
+    <div class="summary-card card-high"><span class="summary-number">{{ high }}</span><span class="summary-label">⚠️ High Risk</span></div>
+    <div class="summary-card card-safe"><span class="summary-number">{{ safe }}</span><span class="summary-label">✅ Safe</span></div>
+    <div class="summary-card card-total"><span class="summary-number">{{ results|length }}</span><span class="summary-label">📚 Subjects</span></div>
+</div>
+
+{% if not results %}
+<div class="empty-state">
+    <h3>No subjects found</h3>
+    <a href="{{ url_for('setup_step1') }}" class="btn-primary">Setup Timetable</a>
+</div>
+{% else %}
+<div class="subjects-grid">
+{% for item in results %}
+<div class="subject-card risk-{{ item.prediction.risk | lower }}">
+    <div class="subject-card-header">
+        <h3>{{ item.name }}</h3>
+        <span class="risk-badge badge-{{ item.prediction.risk | lower }}">
+            {% if item.prediction.risk == 'DANGER' %}🚨 DANGER
+            {% elif item.prediction.risk == 'HIGH' %}⚠️ HIGH
+            {% elif item.prediction.risk == 'MEDIUM' %}🔶 MEDIUM
+            {% elif item.prediction.risk == 'SAFE' %}✅ SAFE
+            {% else %}📊 NO DATA{% endif %}
+        </span>
+    </div>
+    <div class="subject-stats">
+        <div class="stat"><span class="stat-value">{{ item.prediction.current_pct }}%</span><span class="stat-label">Current %</span></div>
+        <div class="stat"><span class="stat-value">{{ item.attended }}/{{ item.total_held }}</span><span class="stat-label">Attended/Held</span></div>
+        <div class="stat"><span class="stat-value">{{ item.grand_total }}</span><span class="stat-label">Total Classes</span></div>
+        {% if item.future_classes > 0 %}
+        <div class="stat"><span class="stat-value {{ 'text-danger' if item.prediction.can_miss <= 2 else '' }}">{{ item.prediction.can_miss }}</span><span class="stat-label">Can Miss</span></div>
+        {% else %}
+        <div class="stat"><span class="stat-value" style="font-size:.9rem;">✔ Done</span><span class="stat-label">Semester</span></div>
+        {% endif %}
+    </div>
+    <div class="progress-container">
+        <div class="progress-bar">
+            <div class="progress-fill" style="width:{{ [item.prediction.current_pct,100]|min }}%;background:{{ '#e74c3c' if item.prediction.risk=='DANGER' else '#e67e22' if item.prediction.risk in ['HIGH','MEDIUM'] else '#27ae60' }}"></div>
+            <div class="progress-threshold"></div>
+        </div>
+        <div class="progress-labels"><span>0%</span><span class="threshold-label">75%</span><span>100%</span></div>
+    </div>
+    <div class="prediction-msg msg-{{ item.prediction.risk | lower }}">{{ item.prediction.message }}</div>
+    <div class="info-pills">
+        <span class="pill">📅 Semester Total: {{ item.grand_total }}</span>
+        <span class="pill">📆 Held so far: {{ item.total_held }}</span>
+        {% if item.future_classes > 0 %}
+        <span class="pill">⏳ Remaining: {{ item.future_classes }}</span>
+        <span class="pill">🎯 Need: {{ item.prediction.min_needed_at_end }}</span>
+        <span class="pill">🔝 Best: {{ item.prediction.best_possible_pct }}%</span>
+        {% endif %}
+    </div>
+    <canvas id="chart-{{ item.id }}" height="65"></canvas>
+</div>
+{% endfor %}
+</div>
+
+<script>
+{% for item in results %}
+(function(){
+    fetch('/api/chart/{{ item.id }}').then(r=>r.json()).then(d=>{
+        if(!d.labels||!d.labels.length) return;
+        new Chart(document.getElementById('chart-{{ item.id }}').getContext('2d'),{
+            type:'line',
+            data:{labels:d.labels,datasets:[
+                {label:'%',data:d.pcts,borderColor:'#667eea',backgroundColor:'rgba(102,126,234,.1)',fill:true,tension:.4,pointRadius:2},
+                {label:'75%',data:Array(d.labels.length).fill(75),borderColor:'#e74c3c',borderDash:[4,4],pointRadius:0,borderWidth:1}
+            ]},
+            options:{responsive:true,plugins:{legend:{display:false}},
+                scales:{y:{min:0,max:100,ticks:{stepSize:25},grid:{color:'#f5f5f5'}},x:{display:false}}}
+        });
+    });
+})();
+{% endfor %}
+</script>
+{% endif %}
+{% endblock %}
